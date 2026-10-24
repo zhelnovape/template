@@ -46,6 +46,12 @@ func Load() (*Config, error) {
 	if cfg.DB.MinConns, err = getInt32OrErr("DATABASE_MIN_CONNS"); err != nil {
 		return nil, err
 	}
+
+	if cfg.DB.MinConns > cfg.DB.MaxConns {
+		return nil, fmt.Errorf("DATABASE_MIN_CONNS (%d) must be <= DATABASE_MAX_CONNS (%d)",
+			cfg.DB.MinConns, cfg.DB.MaxConns)
+	}
+
 	if cfg.DB.MaxConnLifetime, err = getDurOrErr("DATABASE_MAX_CONNECT_LIFETIME"); err != nil {
 		return nil, err
 	}
@@ -72,7 +78,12 @@ func getDurOrErr(varEnv string) (time.Duration, error) {
 		return 0, err
 	}
 
-	return time.ParseDuration(val)
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration for %s: %w", varEnv, err)
+	}	
+
+	return d, nil
 }
 
 func getInt32OrErr(varEnv string) (int32, error) {
@@ -82,5 +93,13 @@ func getInt32OrErr(varEnv string) (int32, error) {
 	}
 
 	num, err := strconv.ParseInt(val, 10, 32)
-	return int32(num), err
+	if err != nil {
+		return 0, fmt.Errorf("invalid value for %s: %w", varEnv, err)
+	}
+
+	if num < 0 {
+		return 0, fmt.Errorf("%s must be non-negative, got %d", varEnv, num)
+	}
+
+	return int32(num), nil
 }
