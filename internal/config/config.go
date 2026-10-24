@@ -8,10 +8,18 @@ import (
 )
 
 type Config struct {
-	HTTPAddr        string
+	HTTP 			HTTP
 	LogLevel        string
 	ShutdownTimeout time.Duration
 	DB              Database
+}
+
+type HTTP struct {
+	Addr        		string
+	ReadTimeout 		time.Duration
+	ReadHeaderTimeout 	time.Duration
+	WriteTimeout 		time.Duration
+	IdleTimeout 		time.Duration
 }
 
 type Database struct {
@@ -23,13 +31,28 @@ type Database struct {
 	QueryTimeout    time.Duration
 }
 
+
+
 func Load() (*Config, error) {
 	var err error
 	cfg := &Config{}
 
-	if cfg.HTTPAddr, err = getStrOrErr("HTTP_ADDR"); err != nil {
+	if cfg.HTTP.Addr, err = getStrOrErr("HTTP_ADDR"); err != nil {
 		return nil, err
 	}
+	if cfg.HTTP.ReadTimeout, err = getDurOrErr("HTTP_READ_TIMEOUT"); err != nil {
+		return nil, err
+	}
+	if cfg.HTTP.ReadHeaderTimeout, err = getDurOrErr("HTTP_READ_HEADER_TIMEOUT"); err != nil {
+		return nil, err
+	}
+	if cfg.HTTP.WriteTimeout, err = getDurOrErr("HTTP_WRITE_TIMEOUT"); err != nil {
+		return nil, err
+	}
+	if cfg.HTTP.IdleTimeout, err = getDurOrErr("HTTP_IDLE_TIMEOUT"); err != nil {
+		return nil, err
+	}
+
 	if cfg.LogLevel, err = getStrOrErr("LOG_LEVEL"); err != nil {
 		return nil, err
 	}
@@ -40,19 +63,22 @@ func Load() (*Config, error) {
 	if cfg.DB.URL, err = getStrOrErr("DATABASE_URL"); err != nil {
 		return nil, err
 	}
+
 	if cfg.DB.MaxConns, err = getInt32OrErr("DATABASE_MAX_CONNS"); err != nil {
 		return nil, err
+	}
+	if cfg.DB.MaxConns <= 0 {
+    	return nil, fmt.Errorf("DATABASE_MAX_CONNS must be positive, got %d", cfg.DB.MaxConns)
 	}
 	if cfg.DB.MinConns, err = getInt32OrErr("DATABASE_MIN_CONNS"); err != nil {
 		return nil, err
 	}
-
 	if cfg.DB.MinConns > cfg.DB.MaxConns {
 		return nil, fmt.Errorf("DATABASE_MIN_CONNS (%d) must be <= DATABASE_MAX_CONNS (%d)",
 			cfg.DB.MinConns, cfg.DB.MaxConns)
 	}
 
-	if cfg.DB.MaxConnLifetime, err = getDurOrErr("DATABASE_MAX_CONNECT_LIFETIME"); err != nil {
+	if cfg.DB.MaxConnLifetime, err = getDurOrErr("DATABASE_MAX_CONN_LIFETIME"); err != nil {
 		return nil, err
 	}
 	if cfg.DB.ConnectTimeout, err = getDurOrErr("DATABASE_CONNECT_TIMEOUT"); err != nil {
@@ -81,8 +107,12 @@ func getDurOrErr(varEnv string) (time.Duration, error) {
 	d, err := time.ParseDuration(val)
 	if err != nil {
 		return 0, fmt.Errorf("invalid duration for %s: %w", varEnv, err)
-	}	
+	}
 
+	if d <= 0 {
+		return 0, fmt.Errorf("%s must be positive, got %s", varEnv, d)
+	}
+	
 	return d, nil
 }
 
