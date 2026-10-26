@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zhelnovape/template/api"
 	"github.com/zhelnovape/template/internal/config"
+	"github.com/zhelnovape/template/internal/trip"
 )
 
 func main() {
@@ -79,7 +81,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func initDatabase(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConnectTimeout)
+	ctx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
 
 	poolConfig, err := pgxpool.ParseConfig(cfg.URL)
@@ -108,6 +110,17 @@ func runServer(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) erro
 	r := chi.NewRouter()
 	r.Get("/health", healthHandler)
 	r.Get("/ready", readyHandler(pool, cfg.DB.QueryTimeout))
+
+	txManager := trip.NewTxManager(pool, pgx.ReadCommitted, cfg.DB.QueryTimeout)
+	repo := trip.NewTripRepository(pool, cfg.DB.QueryTimeout)
+	service := trip.NewTripService(repo, txManager)
+	tripHandler := trip.NewTripHandler(service)
+
+	r.Route("/api/v1/trips", func(r chi.Router) {
+    	r.Post("/", tripHandler.CreateTripHandler())
+    	r.Get("/{tripId}", tripHandler.GetTripHandler())
+    	r.Post("/{tripId}/finish", tripHandler.FinishTripHandler())
+	})
 
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Addr,

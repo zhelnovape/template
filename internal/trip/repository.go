@@ -39,7 +39,7 @@ func NewTripRepository(pool *pgxpool.Pool, queryTimeout time.Duration) *TripRepo
 	return &TripRepository{pool: pool, queryTimeout: queryTimeout}
 }
 
-func (r *TripRepository) SrartTrip(ctx context.Context, trip *Trip) error {
+func (r *TripRepository) CreateTrip(ctx context.Context, trip *Trip) error {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
 
@@ -71,7 +71,7 @@ func (r *TripRepository) SrartTrip(ctx context.Context, trip *Trip) error {
 	return nil
 }
 
-func (r *TripRepository) SearchTrip(ctx context.Context, id uuid.UUID) (*Trip, error) {
+func (r *TripRepository) GetTrip(ctx context.Context, id uuid.UUID) (*Trip, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
 
@@ -118,7 +118,7 @@ func (r *TripRepository) FinishTrip(ctx context.Context, id uuid.UUID, finishedA
 		return nil, fmt.Errorf("execute finish trip: %w", err)
 	}
 
-	if _, err := r.SearchTrip(ctx, id); err != nil {
+	if _, err := r.GetTrip(ctx, id); err != nil {
 		return nil, err
 	}
 	return nil, ErrTripCompleted

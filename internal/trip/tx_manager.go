@@ -24,10 +24,6 @@ func NewTxManager(pool *pgxpool.Pool, isoLevel pgx.TxIsoLevel, txTimeout time.Du
 }
 
 func (m *pgxTxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
-	if _, ok := txFromContext(ctx); ok {
-		return fn(ctx)
-	}
-
 	beginCtx, beginCancel := context.WithTimeout(ctx, m.txTimeout)
 	defer beginCancel()
 
@@ -36,25 +32,26 @@ func (m *pgxTxManager) Do(ctx context.Context, fn func(ctx context.Context) erro
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 
-	rollbackCtx, rollbackCancel := context.WithTimeout(context.WithoutCancel(ctx), m.txTimeout)
-	defer rollbackCancel()
-
-	commitCtx, commitCancel := context.WithTimeout(ctx, m.txTimeout)
-	defer commitCancel()
-
 	committed := false
 	defer func() {
-		if !committed {
-			_ = tx.Rollback(rollbackCtx)
+		if committed {
+			return
 		}
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.txTimeout)
+		defer cancel()
+		_ = tx.Rollback(rollbackCtx)
 	}()
 
 	if err := fn(withTx(ctx, tx)); err != nil {
 		return err
 	}
 
+	commitCtx, commitCancel := context.WithTimeout(ctx, m.txTimeout)
+	defer commitCancel()
+
 	if err := tx.Commit(commitCtx); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
+	committed = true
 	return nil
 }
