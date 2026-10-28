@@ -18,7 +18,7 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*domain.Trip, error
 
 	query, args, err := psql.
 		Select(tripColumns...).
-		From("trips").
+		From(tripsTable).
 		Where(sq.Eq{"id": id}).
 		ToSql()
 	if err != nil {

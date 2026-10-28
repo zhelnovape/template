@@ -32,7 +32,7 @@ func Problem(err error) (status int, body api.Problem) {
 func Write(w http.ResponseWriter, r *http.Request, err error) {
 	status, body := Problem(err)
 	if status == http.StatusInternalServerError {
-		log.Printf("internal error: %s %s: %v", r.Method, r.URL.Path, err)
+		log.Printf("internal error: %v", err)
 	}
 
 	instance := r.URL.Path
@@ -40,11 +40,11 @@ func Write(w http.ResponseWriter, r *http.Request, err error) {
 	response.Problem(w, status, body)
 }
 
-func newProblem(status int, slug, title, detail, code string) (int, api.Problem) {
-	return status, api.Problem{
+func newProblem(status int32, slug, title, detail, code string) (int, api.Problem) {
+	return int(status), api.Problem{
 		Type:   problemBaseURL + slug,
 		Title:  title,
-		Status: int32(status),
+		Status: status,
 		Detail: &detail,
 		Code:   code,
 	}

@@ -11,19 +11,18 @@ import (
 
 type Manager struct {
 	pool      *pgxpool.Pool
-	isoLevel  pgx.TxIsoLevel
 	txTimeout time.Duration
 }
 
-func New(pool *pgxpool.Pool, isoLevel pgx.TxIsoLevel, txTimeout time.Duration) *Manager {
-	return &Manager{pool: pool, isoLevel: isoLevel, txTimeout: txTimeout}
+func New(pool *pgxpool.Pool, txTimeout time.Duration) *Manager {
+	return &Manager{pool: pool, txTimeout: txTimeout}
 }
 
 func (m *Manager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
 	beginCtx, beginCancel := context.WithTimeout(ctx, m.txTimeout)
 	defer beginCancel()
 
-	tx, err := m.pool.BeginTx(beginCtx, pgx.TxOptions{IsoLevel: m.isoLevel})
+	tx, err := m.pool.BeginTx(beginCtx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}

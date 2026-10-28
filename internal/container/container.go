@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/zhelnovape/template/internal/config"
@@ -37,7 +36,7 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 	}
 	log.Println("database connected and pinged successfully")
 
-	txManager := transaction.New(pool, pgx.ReadCommitted, cfg.DB.QueryTimeout)
+	txManager := transaction.New(pool, cfg.DB.QueryTimeout)
 	tripRepo := triprepo.New(pool, cfg.DB.QueryTimeout)
 	clk := clock.New()
 

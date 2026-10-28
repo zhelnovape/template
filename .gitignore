@@ -5,4 +5,7 @@
 # Сборка
 bin/
 
+# Покрытие тестами
+coverage.out
+
 .DS_Store

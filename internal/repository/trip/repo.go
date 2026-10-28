@@ -12,6 +12,10 @@ import (
 const (
 	pgUniqueViolation = "23505"
 	activeDriverIndex = "trips_active_driver_idx"
+
+	tripsTable   = "trips"
+	historyTable = "trip_status_history"
+	statusColumn = "status"
 )
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
@@ -20,7 +24,7 @@ var tripColumns = []string{
 	"id", "user_id", "driver_id",
 	"start_latitude", "start_longitude",
 	"end_latitude", "end_longitude",
-	"price", "status",
+	"price", statusColumn,
 	"started_at", "finished_at",
 	"created_at", "updated_at",
 }

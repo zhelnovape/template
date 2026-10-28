@@ -17,12 +17,12 @@ func (r *Repository) Save(ctx context.Context, t *domain.Trip) error {
 	defer cancel()
 
 	query, args, err := psql.
-		Insert("trips").
+		Insert(tripsTable).
 		Columns(
 			"id", "user_id", "driver_id",
 			"start_latitude", "start_longitude",
 			"end_latitude", "end_longitude",
-			"price", "status", "started_at",
+			"price", statusColumn, "started_at",
 		).
 		Values(
 			t.ID, t.UserID, t.DriverID,
@@ -49,11 +49,11 @@ func (r *Repository) Finish(ctx context.Context, t *domain.Trip) error {
 	defer cancel()
 
 	query, args, err := psql.
-		Update("trips").
-		Set("status", string(t.Status)).
+		Update(tripsTable).
+		Set(statusColumn, string(t.Status)).
 		Set("finished_at", t.FinishedAt).
 		Set("updated_at", sq.Expr("now()")).
-		Where(sq.Eq{"id": t.ID, "status": string(domain.StatusActive)}).
+		Where(sq.Eq{"id": t.ID, statusColumn: string(domain.StatusActive)}).
 		Suffix("RETURNING updated_at").
 		ToSql()
 	if err != nil {
@@ -81,7 +81,7 @@ func (r *Repository) SaveStatusChange(
 	defer cancel()
 
 	query, args, err := psql.
-		Insert("trip_status_history").
+		Insert(historyTable).
 		Columns("trip_id", "from_status", "to_status", "reason").
 		Values(tripID, statusOrNil(from), string(to), reason).
 		ToSql()
