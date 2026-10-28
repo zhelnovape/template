@@ -2,41 +2,49 @@ package finish
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/google/uuid"
 
 	"github.com/zhelnovape/template/internal/domain/trip"
-	"github.com/zhelnovape/template/internal/model"
 )
 
 type UseCase struct {
 	repo      tripRepository
 	txManager txManager
+	clock     clock
 }
 
-func New(repo tripRepository, txManager txManager) *UseCase {
-	return &UseCase{repo: repo, txManager: txManager}
+func New(repo tripRepository, txManager txManager, clk clock) *UseCase {
+	return &UseCase{repo: repo, txManager: txManager, clock: clk}
 }
 
-func (u *UseCase) Execute(ctx context.Context, id uuid.UUID) (*model.Trip, error) {
-	var finishedTrip *model.Trip
+func (u *UseCase) Execute(ctx context.Context, id uuid.UUID) (*trip.Trip, error) {
+	var t *trip.Trip
+
 	err := u.txManager.Do(ctx, func(ctx context.Context) error {
 		var err error
-		finishedTrip, err = u.repo.Finish(ctx, id, now())
+		t, err = u.repo.Get(ctx, id)
 		if err != nil {
+			return fmt.Errorf("get trip: %w", err)
+		}
+
+		from := t.Status
+		if err := t.Finish(u.clock.Now()); err != nil {
 			return err
 		}
 
-		fromStatus := trip.StatusActive
-		return u.repo.ChangeStatus(ctx, id, &fromStatus, trip.StatusCompleted, "trip finished")
+		if err := u.repo.Finish(ctx, t); err != nil {
+			return fmt.Errorf("finish trip: %w", err)
+		}
+		if err := u.repo.SaveStatusChange(ctx, t.ID, &from, t.Status, "trip finished"); err != nil {
+			return fmt.Errorf("save status change: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return finishedTrip, nil
-}
 
-func now() time.Time {
-	return time.Now().UTC().Truncate(time.Microsecond)
+	return t, nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	domain "github.com/zhelnovape/template/internal/domain/trip"
 	"github.com/zhelnovape/template/internal/http/domainerror"
 	"github.com/zhelnovape/template/internal/http/response"
 	"github.com/zhelnovape/template/internal/http/trip"
@@ -22,7 +23,7 @@ func New(usecase tripFinisher) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "tripId"))
 	if err != nil {
-		domainerror.WriteInvalidRequest(w, r)
+		domainerror.Write(w, r, &domain.ValidationError{Field: "tripId", Reason: "must be a valid UUID"})
 		return
 	}
 

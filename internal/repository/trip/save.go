@@ -4,19 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	domain "github.com/zhelnovape/template/internal/domain/trip"
-	"github.com/zhelnovape/template/internal/model"
 )
 
-// Save добавляет новую поездку.
-func (r *Repository) Save(ctx context.Context, trip *model.Trip) error {
+func (r *Repository) Save(ctx context.Context, t *domain.Trip) error {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
 
@@ -29,10 +25,10 @@ func (r *Repository) Save(ctx context.Context, trip *model.Trip) error {
 			"price", "status", "started_at",
 		).
 		Values(
-			trip.ID, trip.UserID, trip.DriverID,
-			trip.StartLatitude, trip.StartLongitude,
-			trip.EndLatitude, trip.EndLongitude,
-			trip.Price, trip.Status, trip.StartedAt,
+			t.ID, t.UserID, t.DriverID,
+			t.Start.Latitude, t.Start.Longitude,
+			t.End.Latitude, t.End.Longitude,
+			t.Price, string(t.Status), t.StartedAt,
 		).
 		ToSql()
 	if err != nil {
@@ -48,43 +44,37 @@ func (r *Repository) Save(ctx context.Context, trip *model.Trip) error {
 	return nil
 }
 
-// Finish переводит активную поездку в статус completed.
-func (r *Repository) Finish(ctx context.Context, id uuid.UUID, finishedAt time.Time) (*model.Trip, error) {
+func (r *Repository) Finish(ctx context.Context, t *domain.Trip) error {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
 
 	query, args, err := psql.
 		Update("trips").
-		Set("status", domain.StatusCompleted).
-		Set("finished_at", finishedAt).
+		Set("status", string(t.Status)).
+		Set("finished_at", t.FinishedAt).
 		Set("updated_at", sq.Expr("now()")).
-		Where(sq.Eq{"id": id, "status": domain.StatusActive}).
-		Suffix("RETURNING " + strings.Join(tripColumns, ", ")).
+		Where(sq.Eq{"id": t.ID, "status": string(domain.StatusActive)}).
+		Suffix("RETURNING updated_at").
 		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("build finish trip query: %w", err)
+		return fmt.Errorf("build finish trip query: %w", err)
 	}
 
-	trip, err := scanTrip(r.conn(ctx).QueryRow(ctx, query, args...))
-	if err == nil {
-		return trip, nil
+	err = r.conn(ctx).QueryRow(ctx, query, args...).Scan(&t.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrTripCompleted
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("execute finish trip: %w", err)
+	if err != nil {
+		return fmt.Errorf("execute finish trip: %w", err)
 	}
-
-	if _, err := r.Get(ctx, id); err != nil {
-		return nil, err
-	}
-	return nil, domain.ErrTripCompleted
+	return nil
 }
 
-// ChangeStatus записывает смену статуса в историю.
-func (r *Repository) ChangeStatus(
+func (r *Repository) SaveStatusChange(
 	ctx context.Context,
 	tripID uuid.UUID,
-	fromStatus *string,
-	toStatus string,
+	from *domain.Status,
+	to domain.Status,
 	reason string,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
@@ -93,7 +83,7 @@ func (r *Repository) ChangeStatus(
 	query, args, err := psql.
 		Insert("trip_status_history").
 		Columns("trip_id", "from_status", "to_status", "reason").
-		Values(tripID, fromStatus, toStatus, reason).
+		Values(tripID, statusOrNil(from), string(to), reason).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build insert status history query: %w", err)

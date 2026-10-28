@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/zhelnovape/template/internal/model"
+	"github.com/zhelnovape/template/internal/domain/trip"
 )
 
 type tripRepository interface {
-	Get(ctx context.Context, id uuid.UUID) (*model.Trip, error)
+	Get(ctx context.Context, id uuid.UUID) (*trip.Trip, error)
 }

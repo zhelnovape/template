@@ -1,3 +1,4 @@
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=${GOFILE} -destination=mocks_test.go -package=${GOPACKAGE}_test
 package get
 
 import (
@@ -5,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/zhelnovape/template/internal/model"
+	domain "github.com/zhelnovape/template/internal/domain/trip"
 )
 
 type tripGetter interface {
-	Execute(ctx context.Context, id uuid.UUID) (*model.Trip, error)
+	Execute(ctx context.Context, id uuid.UUID) (*domain.Trip, error)
 }

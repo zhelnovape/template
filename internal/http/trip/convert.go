@@ -1,19 +1,17 @@
-// Package trip содержит общее для ручек поездки: перевод model.Trip в ответ API.
 package trip
 
 import (
+	domain "github.com/zhelnovape/template/internal/domain/trip"
 	"github.com/zhelnovape/template/internal/generated/api"
-	"github.com/zhelnovape/template/internal/model"
 )
 
-// ToAPI переводит поездку в формат ответа API.
-func ToAPI(t *model.Trip) api.Trip {
+func ToAPI(t *domain.Trip) api.Trip {
 	return api.Trip{
 		Id:         t.ID,
 		UserId:     t.UserID,
 		DriverId:   t.DriverID,
-		StartPoint: api.Coordinates{Latitude: t.StartLatitude, Longitude: t.StartLongitude},
-		EndPoint:   api.Coordinates{Latitude: t.EndLatitude, Longitude: t.EndLongitude},
+		StartPoint: api.Coordinates{Latitude: t.Start.Latitude, Longitude: t.Start.Longitude},
+		EndPoint:   api.Coordinates{Latitude: t.End.Latitude, Longitude: t.End.Longitude},
 		Price:      t.Price,
 		Status:     api.TripStatus(t.Status),
 		StartedAt:  t.StartedAt,

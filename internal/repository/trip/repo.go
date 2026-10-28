@@ -1,4 +1,3 @@
-// Package trip — репозиторий поездок в PostgreSQL.
 package trip
 
 import (
@@ -35,7 +34,6 @@ func New(db querier, queryTimeout time.Duration) *Repository {
 	return &Repository{db: db, queryTimeout: queryTimeout}
 }
 
-// conn возвращает транзакцию из контекста, если она открыта, иначе — пул.
 func (r *Repository) conn(ctx context.Context) querier {
 	if tx, ok := transaction.FromContext(ctx); ok {
 		return tx

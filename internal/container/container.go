@@ -16,6 +16,7 @@ import (
 	createhttp "github.com/zhelnovape/template/internal/http/trip/create"
 	finishhttp "github.com/zhelnovape/template/internal/http/trip/finish"
 	gethttp "github.com/zhelnovape/template/internal/http/trip/get"
+	"github.com/zhelnovape/template/internal/infra/clock"
 	"github.com/zhelnovape/template/internal/infra/postgres"
 	"github.com/zhelnovape/template/internal/infra/postgres/transaction"
 	triprepo "github.com/zhelnovape/template/internal/repository/trip"
@@ -38,10 +39,11 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 
 	txManager := transaction.New(pool, pgx.ReadCommitted, cfg.DB.QueryTimeout)
 	tripRepo := triprepo.New(pool, cfg.DB.QueryTimeout)
+	clk := clock.New()
 
-	createTrip := createuc.New(tripRepo, txManager)
+	createTrip := createuc.New(tripRepo, txManager, clk)
 	getTrip := getuc.New(tripRepo)
-	finishTrip := finishuc.New(tripRepo, txManager)
+	finishTrip := finishuc.New(tripRepo, txManager, clk)
 
 	r := chi.NewRouter()
 	r.Method(http.MethodGet, "/health", health.New())

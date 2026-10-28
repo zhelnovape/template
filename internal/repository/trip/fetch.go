@@ -10,11 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	domain "github.com/zhelnovape/template/internal/domain/trip"
-	"github.com/zhelnovape/template/internal/model"
 )
 
-// Get возвращает поездку по id.
-func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*model.Trip, error) {
+func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*domain.Trip, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
 
@@ -27,12 +25,12 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*model.Trip, error)
 		return nil, fmt.Errorf("build select trip query: %w", err)
 	}
 
-	trip, err := scanTrip(r.conn(ctx).QueryRow(ctx, query, args...))
+	t, err := scanTrip(r.conn(ctx).QueryRow(ctx, query, args...))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrTripNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scan trip: %w", err)
 	}
-	return trip, nil
+	return t, nil
 }

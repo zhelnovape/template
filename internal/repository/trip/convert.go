@@ -6,27 +6,39 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/zhelnovape/template/internal/model"
+	domain "github.com/zhelnovape/template/internal/domain/trip"
 )
 
-// scanTrip переводит строку таблицы trips в model.Trip.
-func scanTrip(row pgx.Row) (*model.Trip, error) {
-	var trip model.Trip
+func scanTrip(row pgx.Row) (*domain.Trip, error) {
+	var (
+		t      domain.Trip
+		status string
+	)
+
 	err := row.Scan(
-		&trip.ID, &trip.UserID, &trip.DriverID,
-		&trip.StartLatitude, &trip.StartLongitude,
-		&trip.EndLatitude, &trip.EndLongitude,
-		&trip.Price, &trip.Status,
-		&trip.StartedAt, &trip.FinishedAt,
-		&trip.CreatedAt, &trip.UpdatedAt,
+		&t.ID, &t.UserID, &t.DriverID,
+		&t.Start.Latitude, &t.Start.Longitude,
+		&t.End.Latitude, &t.End.Longitude,
+		&t.Price, &status,
+		&t.StartedAt, &t.FinishedAt,
+		&t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return &trip, nil
+
+	t.Status = domain.Status(status)
+	return &t, nil
 }
 
-// isActiveDriverViolation проверяет, что вставка упала на индексе «одна активная поездка на водителя».
+func statusOrNil(s *domain.Status) *string {
+	if s == nil {
+		return nil
+	}
+	value := string(*s)
+	return &value
+}
+
 func isActiveDriverViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) &&

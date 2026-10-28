@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	domain "github.com/zhelnovape/template/internal/domain/trip"
 	"github.com/zhelnovape/template/internal/generated/api"
 	"github.com/zhelnovape/template/internal/http/domainerror"
 	"github.com/zhelnovape/template/internal/http/response"
@@ -23,13 +24,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&req); err != nil || !validTripData(req) {
-		domainerror.WriteInvalidRequest(w, r)
+	if err := dec.Decode(&req); err != nil {
+		domainerror.Write(w, r, &domain.ValidationError{Field: "body", Reason: "must be a valid JSON object"})
 		return
 	}
 
-	t := toModel(req)
-	if err := h.usecase.Execute(r.Context(), t); err != nil {
+	t, err := h.usecase.Execute(r.Context(), toModel(req))
+	if err != nil {
 		domainerror.Write(w, r, err)
 		return
 	}

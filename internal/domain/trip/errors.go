@@ -7,3 +7,12 @@ var (
 	ErrTripCompleted = errors.New("trip already completed")
 	ErrDriverBusy    = errors.New("driver already has an active trip")
 )
+
+type ValidationError struct {
+	Field  string
+	Reason string
+}
+
+func (e *ValidationError) Error() string {
+	return "invalid " + e.Field + ": " + e.Reason
+}

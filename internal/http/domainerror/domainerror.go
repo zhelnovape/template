@@ -12,8 +12,12 @@ import (
 
 const problemBaseURL = "https://tripgo.example/problems/"
 
-func Problem(err error) (int, api.Problem) {
+func Problem(err error) (status int, body api.Problem) {
+	var validationErr *trip.ValidationError
+
 	switch {
+	case errors.As(err, &validationErr):
+		return newProblem(http.StatusBadRequest, "invalid-request", "Invalid request", validationErr.Error(), "invalid_request")
 	case errors.Is(err, trip.ErrTripNotFound):
 		return newProblem(http.StatusNotFound, "trip-not-found", "Trip not found", "Trip was not found", "trip_not_found")
 	case errors.Is(err, trip.ErrTripCompleted):
@@ -26,22 +30,14 @@ func Problem(err error) (int, api.Problem) {
 }
 
 func Write(w http.ResponseWriter, r *http.Request, err error) {
-	status, p := Problem(err)
+	status, body := Problem(err)
 	if status == http.StatusInternalServerError {
 		log.Printf("internal error: %s %s: %v", r.Method, r.URL.Path, err)
 	}
-	write(w, r, status, p)
-}
 
-func WriteInvalidRequest(w http.ResponseWriter, r *http.Request) {
-	status, p := newProblem(http.StatusBadRequest, "invalid-request", "Invalid request", "Request validation failed", "invalid_request")
-	write(w, r, status, p)
-}
-
-func write(w http.ResponseWriter, r *http.Request, status int, p api.Problem) {
 	instance := r.URL.Path
-	p.Instance = &instance
-	response.Problem(w, status, p)
+	body.Instance = &instance
+	response.Problem(w, status, body)
 }
 
 func newProblem(status int, slug, title, detail, code string) (int, api.Problem) {
