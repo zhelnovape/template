@@ -2,7 +2,6 @@ package response
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/zhelnovape/template/internal/generated/api"
@@ -19,7 +18,5 @@ func Problem(w http.ResponseWriter, status int, p api.Problem) {
 func write(w http.ResponseWriter, status int, contentType string, v any) {
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("failed to encode response: %v", err)
-	}
+	_ = json.NewEncoder(w).Encode(v)
 }

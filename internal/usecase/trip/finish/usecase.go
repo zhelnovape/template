@@ -3,8 +3,10 @@ package finish
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/zhelnovape/template/internal/domain/trip"
 )
@@ -13,10 +15,12 @@ type UseCase struct {
 	repo      tripRepository
 	txManager txManager
 	clock     clock
+	logger    *slog.Logger
+	completed metric.Int64Counter
 }
 
-func New(repo tripRepository, txManager txManager, clk clock) *UseCase {
-	return &UseCase{repo: repo, txManager: txManager, clock: clk}
+func New(repo tripRepository, txManager txManager, clk clock, logger *slog.Logger, completed metric.Int64Counter) *UseCase {
+	return &UseCase{repo: repo, txManager: txManager, clock: clk, logger: logger, completed: completed}
 }
 
 func (u *UseCase) Execute(ctx context.Context, id uuid.UUID) (*trip.Trip, error) {
@@ -45,6 +49,9 @@ func (u *UseCase) Execute(ctx context.Context, id uuid.UUID) (*trip.Trip, error)
 	if err != nil {
 		return nil, err
 	}
+
+	u.completed.Add(ctx, 1)
+	u.logger.InfoContext(ctx, "trip completed", "trip_id", t.ID)
 
 	return t, nil
 }

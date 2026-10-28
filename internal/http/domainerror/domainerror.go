@@ -2,7 +2,7 @@ package domainerror
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/zhelnovape/template/internal/domain/trip"
@@ -29,12 +29,15 @@ func Problem(err error) (status int, body api.Problem) {
 	}
 }
 
-func Write(w http.ResponseWriter, r *http.Request, err error) {
-	status, body := Problem(err)
-	if status == http.StatusInternalServerError {
-		log.Printf("internal error: %v", err)
+func Write(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err error) {
+	if status, _ := Problem(err); status == http.StatusInternalServerError {
+		logger.ErrorContext(r.Context(), "request failed", "error", err)
 	}
+	Respond(w, r, err)
+}
 
+func Respond(w http.ResponseWriter, r *http.Request, err error) {
+	status, body := Problem(err)
 	instance := r.URL.Path
 	body.Instance = &instance
 	response.Problem(w, status, body)

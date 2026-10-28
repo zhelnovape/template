@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -33,38 +34,40 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("build container: %w", err)
 	}
-	defer c.Close()
 
-	if err := serve(ctx, c.Server, cfg.ShutdownTimeout); err != nil {
-		return fmt.Errorf("server run failed: %w", err)
-	}
+	serveErr := serve(ctx, c.Server, c.Logger, cfg.ShutdownTimeout)
 
-	return nil
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.ShutdownTimeout)
+	defer cancel()
+	c.Close(closeCtx)
+
+	c.Logger.Info("service stopped")
+	return serveErr
 }
 
-func serve(ctx context.Context, srv *http.Server, shutdownTimeout time.Duration) error {
+func serve(ctx context.Context, srv *http.Server, logger *slog.Logger, shutdownTimeout time.Duration) error {
 	srvErr := make(chan error, 1)
 
 	go func() {
-		log.Printf("listening on %s", srv.Addr)
+		logger.Info("service started", "addr", srv.Addr)
 		srvErr <- srv.ListenAndServe()
 	}()
 
 	select {
 	case <-ctx.Done():
-		log.Println("shutdown signal received, stopping server...")
+		logger.Info("shutdown signal received")
 
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 		defer cancel()
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				log.Printf("shutdown timeout %s exceeded, forcing exit", shutdownTimeout)
+				logger.Error("shutdown timeout exceeded, forcing exit", "timeout", shutdownTimeout)
 			}
 			return fmt.Errorf("server forced to shutdown: %w", err)
 		}
 
-		log.Println("server stopped gracefully")
+		logger.Info("server stopped gracefully")
 
 	case err := <-srvErr:
 		if !errors.Is(err, http.ErrServerClosed) {

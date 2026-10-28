@@ -1,6 +1,7 @@
 package get
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -14,22 +15,23 @@ import (
 
 type Handler struct {
 	usecase tripGetter
+	logger  *slog.Logger
 }
 
-func New(usecase tripGetter) *Handler {
-	return &Handler{usecase: usecase}
+func New(usecase tripGetter, logger *slog.Logger) *Handler {
+	return &Handler{usecase: usecase, logger: logger}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "tripId"))
 	if err != nil {
-		domainerror.Write(w, r, &domain.ValidationError{Field: "tripId", Reason: "must be a valid UUID"})
+		domainerror.Write(w, r, h.logger, &domain.ValidationError{Field: "tripId", Reason: "must be a valid UUID"})
 		return
 	}
 
 	t, err := h.usecase.Execute(r.Context(), id)
 	if err != nil {
-		domainerror.Write(w, r, err)
+		domainerror.Write(w, r, h.logger, err)
 		return
 	}
 

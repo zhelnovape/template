@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/zhelnovape/template/internal/config"
 )
 
-func New(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
+func New(ctx context.Context, cfg config.Database, tracer pgx.QueryTracer) (*pgxpool.Pool, error) {
 	ctx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
 
@@ -21,6 +22,7 @@ func New(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
 	poolConfig.MaxConns = cfg.MaxConns
 	poolConfig.MinConns = cfg.MinConns
 	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
+	poolConfig.ConnConfig.Tracer = tracer
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {

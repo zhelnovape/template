@@ -3,12 +3,15 @@ package create_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/mock/gomock"
 
 	"github.com/zhelnovape/template/internal/domain/trip"
@@ -22,6 +25,7 @@ type deps struct {
 	repo      *MocktripRepository
 	txManager *MocktxManager
 	clock     *Mockclock
+	metrics   *sdkmetric.ManualReader
 }
 
 func newUseCase(t *testing.T) (*create.UseCase, deps) {
@@ -32,8 +36,34 @@ func newUseCase(t *testing.T) (*create.UseCase, deps) {
 		repo:      NewMocktripRepository(ctrl),
 		txManager: NewMocktxManager(ctrl),
 		clock:     NewMockclock(ctrl),
+		metrics:   sdkmetric.NewManualReader(),
 	}
-	return create.New(d.repo, d.txManager, d.clock), d
+
+	created, err := sdkmetric.NewMeterProvider(sdkmetric.WithReader(d.metrics)).
+		Meter("test").
+		Int64Counter("tripgo.trips.created")
+	require.NoError(t, err)
+
+	return create.New(d.repo, d.txManager, d.clock, slog.New(slog.DiscardHandler), created), d
+}
+
+func (d deps) createdTrips(t *testing.T) int64 {
+	t.Helper()
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, d.metrics.Collect(context.Background(), &rm))
+
+	var total int64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok)
+			for _, dp := range sum.DataPoints {
+				total += dp.Value
+			}
+		}
+	}
+	return total
 }
 
 func (d deps) expectTransaction() {
@@ -86,6 +116,7 @@ func TestUseCase_Execute_Success(t *testing.T) {
 	assert.Equal(t, in.Price, got.Price)
 	assert.Equal(t, trip.StatusActive, got.Status)
 	assert.Equal(t, now, got.StartedAt)
+	assert.Equal(t, int64(1), d.createdTrips(t))
 }
 
 func TestUseCase_Execute_SavesHistoryForCreatedTrip(t *testing.T) {
@@ -127,6 +158,7 @@ func TestUseCase_Execute_DriverBusy(t *testing.T) {
 
 	require.ErrorIs(t, err, trip.ErrDriverBusy)
 	assert.Nil(t, got)
+	assert.Equal(t, int64(0), d.createdTrips(t))
 }
 
 func TestUseCase_Execute_InvalidInput(t *testing.T) {

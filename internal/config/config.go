@@ -13,6 +13,7 @@ type Config struct {
 	LogLevel        string
 	ShutdownTimeout time.Duration
 	DB              Database
+	Telemetry       Telemetry
 }
 
 type HTTP struct {
@@ -30,6 +31,11 @@ type Database struct {
 	MaxConnLifetime time.Duration
 	ConnectTimeout  time.Duration
 	QueryTimeout    time.Duration
+}
+
+type Telemetry struct {
+	Endpoint string
+	Protocol string
 }
 
 func Load() (*Config, error) {
@@ -85,6 +91,16 @@ func Load() (*Config, error) {
 	}
 	if cfg.DB.QueryTimeout, err = getDurOrErr("DATABASE_QUERY_TIMEOUT"); err != nil {
 		return nil, err
+	}
+
+	if cfg.Telemetry.Endpoint, err = getStrOrErr("OTEL_EXPORTER_OTLP_ENDPOINT"); err != nil {
+		return nil, err
+	}
+	if cfg.Telemetry.Protocol, err = getStrOrErr("OTEL_EXPORTER_OTLP_PROTOCOL"); err != nil {
+		return nil, err
+	}
+	if cfg.Telemetry.Protocol != "http/protobuf" && cfg.Telemetry.Protocol != "grpc" {
+		return nil, fmt.Errorf("OTEL_EXPORTER_OTLP_PROTOCOL must be http/protobuf or grpc, got %q", cfg.Telemetry.Protocol)
 	}
 
 	return cfg, nil

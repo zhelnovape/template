@@ -2,6 +2,7 @@ package create
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	domain "github.com/zhelnovape/template/internal/domain/trip"
@@ -13,10 +14,11 @@ import (
 
 type Handler struct {
 	usecase tripCreator
+	logger  *slog.Logger
 }
 
-func New(usecase tripCreator) *Handler {
-	return &Handler{usecase: usecase}
+func New(usecase tripCreator, logger *slog.Logger) *Handler {
+	return &Handler{usecase: usecase, logger: logger}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -25,13 +27,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
-		domainerror.Write(w, r, &domain.ValidationError{Field: "body", Reason: "must be a valid JSON object"})
+		domainerror.Write(w, r, h.logger, &domain.ValidationError{Field: "body", Reason: "must be a valid JSON object"})
 		return
 	}
 
 	t, err := h.usecase.Execute(r.Context(), toModel(req))
 	if err != nil {
-		domainerror.Write(w, r, err)
+		domainerror.Write(w, r, h.logger, err)
 		return
 	}
 

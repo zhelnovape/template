@@ -1,9 +1,11 @@
 package domainerror_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +17,8 @@ import (
 	"github.com/zhelnovape/template/internal/generated/api"
 	"github.com/zhelnovape/template/internal/http/domainerror"
 )
+
+const tripPath = "/api/v1/trips/42"
 
 func TestProblem(t *testing.T) {
 	t.Parallel()
@@ -90,18 +94,35 @@ func TestProblem(t *testing.T) {
 func TestWrite(t *testing.T) {
 	t.Parallel()
 
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/trips/42", http.NoBody)
+	r := httptest.NewRequest(http.MethodGet, tripPath, http.NoBody)
 
-	domainerror.Write(w, r, errors.New("password authentication failed for user tripgo"))
+	domainerror.Write(w, r, logger, errors.New("password authentication failed for user tripgo"))
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
 	assert.NotContains(t, w.Body.String(), "password")
+	assert.Contains(t, logs.String(), "password authentication failed")
 
 	var body api.Problem
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "internal_error", body.Code)
 	require.NotNil(t, body.Instance)
-	assert.Equal(t, "/api/v1/trips/42", *body.Instance)
+	assert.Equal(t, tripPath, *body.Instance)
+}
+
+func TestWrite_ClientErrorIsNotLogged(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, tripPath, http.NoBody)
+
+	domainerror.Write(w, r, logger, trip.ErrTripNotFound)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Empty(t, logs.String())
 }

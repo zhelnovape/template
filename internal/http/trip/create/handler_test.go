@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,7 +52,7 @@ func serve(t *testing.T, usecase *MocktripCreator, body string) *httptest.Respon
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, tripsURL, strings.NewReader(body))
-	create.New(usecase).ServeHTTP(w, r)
+	create.New(usecase, slog.New(slog.DiscardHandler)).ServeHTTP(w, r)
 	return w
 }
 

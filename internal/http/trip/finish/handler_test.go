@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,7 +25,7 @@ func serve(t *testing.T, usecase *MocktripFinisher, tripID string) *httptest.Res
 	t.Helper()
 
 	router := chi.NewRouter()
-	router.Method(http.MethodPost, "/api/v1/trips/{tripId}/finish", finish.New(usecase))
+	router.Method(http.MethodPost, "/api/v1/trips/{tripId}/finish", finish.New(usecase, slog.New(slog.DiscardHandler)))
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/trips/"+tripID+"/finish", http.NoBody))

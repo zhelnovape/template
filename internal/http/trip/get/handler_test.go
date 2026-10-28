@@ -3,6 +3,7 @@ package get_test
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,7 +24,7 @@ func serve(t *testing.T, usecase *MocktripGetter, tripID string) *httptest.Respo
 	t.Helper()
 
 	router := chi.NewRouter()
-	router.Method(http.MethodGet, "/api/v1/trips/{tripId}", get.New(usecase))
+	router.Method(http.MethodGet, "/api/v1/trips/{tripId}", get.New(usecase, slog.New(slog.DiscardHandler)))
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/trips/"+tripID, http.NoBody))

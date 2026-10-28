@@ -3,12 +3,15 @@ package finish_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/mock/gomock"
 
 	"github.com/zhelnovape/template/internal/domain/trip"
@@ -24,6 +27,7 @@ type deps struct {
 	repo      *MocktripRepository
 	txManager *MocktxManager
 	clock     *Mockclock
+	metrics   *sdkmetric.ManualReader
 }
 
 func newUseCase(t *testing.T) (*finish.UseCase, deps) {
@@ -34,7 +38,13 @@ func newUseCase(t *testing.T) (*finish.UseCase, deps) {
 		repo:      NewMocktripRepository(ctrl),
 		txManager: NewMocktxManager(ctrl),
 		clock:     NewMockclock(ctrl),
+		metrics:   sdkmetric.NewManualReader(),
 	}
+
+	completed, err := sdkmetric.NewMeterProvider(sdkmetric.WithReader(d.metrics)).
+		Meter("test").
+		Int64Counter("tripgo.trips.completed")
+	require.NoError(t, err)
 
 	d.txManager.EXPECT().
 		Do(gomock.Any(), gomock.Any()).
@@ -42,7 +52,26 @@ func newUseCase(t *testing.T) (*finish.UseCase, deps) {
 			return fn(ctx)
 		})
 
-	return finish.New(d.repo, d.txManager, d.clock), d
+	return finish.New(d.repo, d.txManager, d.clock, slog.New(slog.DiscardHandler), completed), d
+}
+
+func (d deps) completedTrips(t *testing.T) int64 {
+	t.Helper()
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, d.metrics.Collect(context.Background(), &rm))
+
+	var total int64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok)
+			for _, dp := range sum.DataPoints {
+				total += dp.Value
+			}
+		}
+	}
+	return total
 }
 
 func newActiveTrip(t *testing.T) *trip.Trip {
@@ -86,6 +115,7 @@ func TestUseCase_Execute_Success(t *testing.T) {
 	assert.Equal(t, trip.StatusCompleted, got.Status)
 	require.NotNil(t, got.FinishedAt)
 	assert.Equal(t, finishedAt, *got.FinishedAt)
+	assert.Equal(t, int64(1), d.completedTrips(t))
 }
 
 func TestUseCase_Execute_TripNotFound(t *testing.T) {
@@ -116,6 +146,7 @@ func TestUseCase_Execute_AlreadyCompleted(t *testing.T) {
 
 	require.ErrorIs(t, err, trip.ErrTripCompleted)
 	assert.Nil(t, got)
+	assert.Equal(t, int64(0), d.completedTrips(t))
 }
 
 func TestUseCase_Execute_FinishedByAnotherRequest(t *testing.T) {
