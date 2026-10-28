@@ -1,8 +1,9 @@
-package trip
+package model
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Trip struct {
@@ -23,8 +24,3 @@ type Trip struct {
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
-
-const (
-	StatusActive    = "active"
-	StatusCompleted = "completed"
-)

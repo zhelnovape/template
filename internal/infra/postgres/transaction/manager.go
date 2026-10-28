@@ -1,4 +1,4 @@
-package trip
+package transaction
 
 import (
 	"context"
@@ -9,21 +9,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type TxManager interface {
-	Do(ctx context.Context, fn func(ctx context.Context) error) error
-}
-
-type pgxTxManager struct {
-	pool     *pgxpool.Pool
-	isoLevel pgx.TxIsoLevel
+type Manager struct {
+	pool      *pgxpool.Pool
+	isoLevel  pgx.TxIsoLevel
 	txTimeout time.Duration
 }
 
-func NewTxManager(pool *pgxpool.Pool, isoLevel pgx.TxIsoLevel, txTimeout time.Duration) TxManager {
-	return &pgxTxManager{pool: pool, isoLevel: isoLevel, txTimeout: txTimeout}
+func New(pool *pgxpool.Pool, isoLevel pgx.TxIsoLevel, txTimeout time.Duration) *Manager {
+	return &Manager{pool: pool, isoLevel: isoLevel, txTimeout: txTimeout}
 }
 
-func (m *pgxTxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+func (m *Manager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
 	beginCtx, beginCancel := context.WithTimeout(ctx, m.txTimeout)
 	defer beginCancel()
 
