@@ -118,6 +118,33 @@ func TestLogging(t *testing.T) {
 	}
 }
 
+func TestLoggingOnPanic(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	router := newRouter(http.StatusOK)
+	handler := middleware.Chain(router, middleware.Recover(logger), middleware.Logging(logger, router))
+
+	w := serve(handler, "/panic")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var handled []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		if record["msg"] == "request handled" {
+			handled = append(handled, record)
+		}
+	}
+
+	require.Len(t, handled, 1)
+	assert.Equal(t, "ERROR", handled[0]["level"])
+	assert.Equal(t, "/panic", handled[0]["route"])
+	assert.InDelta(t, http.StatusInternalServerError, handled[0]["status"], 0)
+	assert.Contains(t, handled[0], "duration_ms")
+}
+
 func TestMetrics(t *testing.T) {
 	t.Parallel()
 

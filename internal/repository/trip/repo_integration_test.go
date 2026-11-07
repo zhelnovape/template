@@ -229,3 +229,29 @@ func (s *RepositorySuite) TestTransactionRollbackOnDatabaseError() {
 	s.Require().ErrorIs(err, domain.ErrTripNotFound)
 	s.Equal(0, s.countHistory(tr.ID))
 }
+
+func (s *RepositorySuite) TestNestedTransactionReusesOuter() {
+	ctx := context.Background()
+	tr := s.newTrip()
+	errInner := errors.New("inner transaction failed")
+
+	err := s.txManager.Do(ctx, func(ctx context.Context) error {
+		outer, _ := transaction.FromContext(ctx)
+		if err := s.repo.Save(ctx, tr); err != nil {
+			return err
+		}
+		return s.txManager.Do(ctx, func(ctx context.Context) error {
+			inner, _ := transaction.FromContext(ctx)
+			s.Same(outer, inner)
+			if err := s.repo.SaveStatusChange(ctx, tr.ID, nil, tr.Status, createdReason); err != nil {
+				return err
+			}
+			return errInner
+		})
+	})
+
+	s.Require().ErrorIs(err, errInner)
+	_, err = s.repo.Get(ctx, tr.ID)
+	s.Require().ErrorIs(err, domain.ErrTripNotFound)
+	s.Equal(0, s.countHistory(tr.ID))
+}

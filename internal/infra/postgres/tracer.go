@@ -16,7 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const meterName = "github.com/zhelnovape/template/internal/infra/postgres"
+const (
+	meterName        = "github.com/zhelnovape/template/internal/infra/postgres"
+	unknownOperation = "UNKNOWN"
+)
 
 type QueryTracer struct {
 	spans    *otelpgx.Tracer
@@ -97,7 +100,7 @@ func spanName(sql string) string {
 func operationName(sql string) string {
 	fields := strings.Fields(sql)
 	if len(fields) == 0 {
-		return "UNKNOWN"
+		return unknownOperation
 	}
 	return strings.ToUpper(fields[0])
 }

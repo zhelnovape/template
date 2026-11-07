@@ -3,6 +3,8 @@ export
 
 .PHONY: generate migrate run lint test test-integration
 
+GOLANGCI_LINT_VERSION := v2.12.2
+
 generate:
 	go tool oapi-codegen -generate types,chi-server -package api -o internal/generated/api/api.gen.go contracts/openapi/trip-service.openapi.yaml
 	go generate ./...
@@ -14,7 +16,7 @@ run:
 	go run ./cmd/service
 
 lint:
-	golangci-lint run ./...
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
 
 test:
 	go test -race -count=1 ./...

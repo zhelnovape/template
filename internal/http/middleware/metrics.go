@@ -33,10 +33,11 @@ func Metrics(meter metric.Meter, routes chi.Routes) (Middleware, error) {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			attrs := []attribute.KeyValue{
+			attrs := make([]attribute.KeyValue, 0, 3)
+			attrs = append(attrs,
 				attribute.String("http.request.method", r.Method),
 				attribute.String("http.route", routePattern(routes, r)),
-			}
+			)
 
 			active.Add(r.Context(), 1, metric.WithAttributes(attrs...))
 			defer active.Add(r.Context(), -1, metric.WithAttributes(attrs...))

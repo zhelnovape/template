@@ -68,8 +68,7 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 
 	handler, err := newHandler(cfg, c, meter)
 	if err != nil {
-		c.Close(ctx)
-		return nil, err
+		return nil, errors.Join(err, c.Close(ctx))
 	}
 
 	c.Server = &http.Server{
@@ -131,9 +130,27 @@ func newHandler(cfg *config.Config, c *Container, meter metric.Meter) (http.Hand
 	), nil
 }
 
-func (c *Container) Close(ctx context.Context) {
-	c.pool.Close()
+func (c *Container) Close(ctx context.Context) error {
+	if err := closePool(ctx, c.pool); err != nil {
+		return err
+	}
 	if err := c.telemetry.Shutdown(ctx); err != nil {
 		c.Logger.Warn("telemetry shutdown failed", "error", err)
+	}
+	return nil
+}
+
+func closePool(ctx context.Context, pool *pgxpool.Pool) error {
+	closed := make(chan struct{})
+	go func() {
+		pool.Close()
+		close(closed)
+	}()
+
+	select {
+	case <-closed:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("close database pool: %w", ctx.Err())
 	}
 }

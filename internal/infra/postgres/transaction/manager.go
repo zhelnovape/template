@@ -19,6 +19,10 @@ func New(pool *pgxpool.Pool, txTimeout time.Duration) *Manager {
 }
 
 func (m *Manager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	if _, ok := FromContext(ctx); ok {
+		return fn(ctx)
+	}
+
 	beginCtx, beginCancel := context.WithTimeout(ctx, m.txTimeout)
 	defer beginCancel()
 

@@ -48,8 +48,8 @@ func TestSpanName(t *testing.T) {
 		},
 		{
 			sql:           "",
-			wantOperation: "UNKNOWN",
-			wantSpanName:  "UNKNOWN",
+			wantOperation: unknownOperation,
+			wantSpanName:  unknownOperation,
 		},
 	}
 

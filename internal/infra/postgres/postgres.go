@@ -22,6 +22,7 @@ func New(ctx context.Context, cfg config.Database, tracer pgx.QueryTracer) (*pgx
 	poolConfig.MaxConns = cfg.MaxConns
 	poolConfig.MinConns = cfg.MinConns
 	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
+	poolConfig.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
 	poolConfig.ConnConfig.Tracer = tracer
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
