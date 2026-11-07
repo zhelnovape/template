@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os/signal"
@@ -21,9 +21,9 @@ import (
 
 func main() {
 	ctx, stop := signal.NotifyContext(
-		context.Background(), 
-    	syscall.SIGINT, 
-    	syscall.SIGTERM,
+		context.Background(),
+		syscall.SIGINT,
+		syscall.SIGTERM,
 	)
 	defer stop()
 
@@ -43,7 +43,6 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("database initialization failed: %w", err)
 	}
-	defer pool.Close()
 
 	log.Println("database connected and pinged successfully")
 
@@ -76,7 +75,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-    	log.Printf("failed to encode response: %v", err)
+		log.Printf("failed to encode response: %v", err)
 	}
 }
 
@@ -92,6 +91,7 @@ func initDatabase(ctx context.Context, cfg config.Database) (*pgxpool.Pool, erro
 	poolConfig.MaxConns = cfg.MaxConns
 	poolConfig.MinConns = cfg.MinConns
 	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
+	poolConfig.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
@@ -106,6 +106,21 @@ func initDatabase(ctx context.Context, cfg config.Database) (*pgxpool.Pool, erro
 	return pool, nil
 }
 
+func closePool(ctx context.Context, pool *pgxpool.Pool) error {
+	closed := make(chan struct{})
+	go func() {
+		pool.Close()
+		close(closed)
+	}()
+
+	select {
+	case <-closed:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("close database pool: %w", ctx.Err())
+	}
+}
+
 func runServer(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) error {
 	r := chi.NewRouter()
 	r.Get("/health", healthHandler)
@@ -117,9 +132,9 @@ func runServer(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) erro
 	tripHandler := trip.NewTripHandler(service)
 
 	r.Route("/api/v1/trips", func(r chi.Router) {
-    	r.Post("/", tripHandler.CreateTripHandler())
-    	r.Get("/{tripId}", tripHandler.GetTripHandler())
-    	r.Post("/{tripId}/finish", tripHandler.FinishTripHandler())
+		r.Post("/", tripHandler.CreateTripHandler())
+		r.Get("/{tripId}", tripHandler.GetTripHandler())
+		r.Post("/{tripId}/finish", tripHandler.FinishTripHandler())
 	})
 
 	srv := &http.Server{
@@ -133,10 +148,10 @@ func runServer(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) erro
 
 	srvErr := make(chan error, 1)
 
-    go func() {
+	go func() {
 		log.Printf("listening on %s", cfg.HTTP.Addr)
 		srvErr <- srv.ListenAndServe()
-    }()
+	}()
 
 	select {
 	case <-ctx.Done():
@@ -151,10 +166,15 @@ func runServer(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) erro
 			}
 			return fmt.Errorf("server forced to shutdown: %w", err)
 		}
-		
+
 		log.Println("server stopped gracefully")
 
+		if err := closePool(shutdownCtx, pool); err != nil {
+			return err
+		}
+
 	case err := <-srvErr:
+		pool.Close()
 		if !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("failed to start server: %w", err)
 		}

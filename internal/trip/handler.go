@@ -1,10 +1,12 @@
 package trip
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
-	"net/http"
+	"io"
 	"log"
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -23,15 +25,12 @@ func NewTripHandler(service *TripService) *TripHandler {
 
 func (h *TripHandler) CreateTripHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req api.TripData
- 
-		dec := json.NewDecoder(r.Body)
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&req); err != nil || !validTripData(req) {
+		req, ok := decodeTripData(r.Body)
+		if !ok {
 			writeInvalidRequest(w, r)
 			return
 		}
- 
+
 		trip := &Trip{
 			UserID:         req.UserId,
 			DriverID:       req.DriverId,
@@ -41,12 +40,12 @@ func (h *TripHandler) CreateTripHandler() http.HandlerFunc {
 			EndLongitude:   req.EndPoint.Longitude,
 			Price:          req.Price,
 		}
- 
+
 		if err := h.service.CreateTrip(r.Context(), trip); err != nil {
 			writeError(w, r, err)
 			return
 		}
- 
+
 		w.Header().Set("Location", "/api/v1/trips/"+trip.ID.String())
 		writeJSON(w, http.StatusCreated, toAPITrip(trip))
 	}
@@ -59,13 +58,13 @@ func (h *TripHandler) GetTripHandler() http.HandlerFunc {
 			writeInvalidRequest(w, r)
 			return
 		}
- 
+
 		trip, err := h.service.GetTrip(r.Context(), id)
 		if err != nil {
 			writeError(w, r, err)
 			return
 		}
- 
+
 		writeJSON(w, http.StatusOK, toAPITrip(trip))
 	}
 }
@@ -77,15 +76,60 @@ func (h *TripHandler) FinishTripHandler() http.HandlerFunc {
 			writeInvalidRequest(w, r)
 			return
 		}
- 
+
 		trip, err := h.service.FinishTrip(r.Context(), id)
 		if err != nil {
 			writeError(w, r, err)
 			return
 		}
- 
+
 		writeJSON(w, http.StatusOK, toAPITrip(trip))
 	}
+}
+
+func decodeTripData(body io.Reader) (api.TripData, bool) {
+	var req api.TripData
+
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return req, false
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		return req, false
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return req, false
+	}
+
+	return req, hasRequiredFields(raw) && validTripData(req)
+}
+
+func hasRequiredFields(raw []byte) bool {
+	var trip map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &trip); err != nil ||
+		!present(trip, "user_id", "driver_id", "start_point", "end_point", "price") {
+		return false
+	}
+
+	for _, name := range []string{"start_point", "end_point"} {
+		var point map[string]json.RawMessage
+		if err := json.Unmarshal(trip[name], &point); err != nil || !present(point, "latitude", "longitude") {
+			return false
+		}
+	}
+	return true
+}
+
+func present(obj map[string]json.RawMessage, fields ...string) bool {
+	for _, f := range fields {
+		if v, ok := obj[f]; !ok || string(v) == "null" {
+			return false
+		}
+	}
+	return true
 }
 
 func validTripData(req api.TripData) bool {
@@ -95,12 +139,12 @@ func validTripData(req api.TripData) bool {
 		validCoordinates(req.EndPoint) &&
 		req.Price >= 0
 }
- 
+
 func validCoordinates(c api.Coordinates) bool {
 	return c.Latitude >= -90 && c.Latitude <= 90 &&
 		c.Longitude >= -180 && c.Longitude <= 180
 }
- 
+
 func toAPITrip(t *Trip) api.Trip {
 	return api.Trip{
 		Id:         t.ID,
@@ -128,11 +172,11 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		writeProblem(w, r, http.StatusInternalServerError, "internal-error", "Internal Server Error", "Internal server error", "internal_error")
 	}
 }
- 
+
 func writeInvalidRequest(w http.ResponseWriter, r *http.Request) {
 	writeProblem(w, r, http.StatusBadRequest, "invalid-request", "Invalid request", "Request validation failed", "invalid_request")
 }
- 
+
 func writeProblem(w http.ResponseWriter, r *http.Request, status int, slug, title, detail, code string) {
 	instance := r.URL.Path
 	writeBody(w, status, "application/problem+json", api.Problem{
@@ -144,11 +188,11 @@ func writeProblem(w http.ResponseWriter, r *http.Request, status int, slug, titl
 		Code:     code,
 	})
 }
- 
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	writeBody(w, status, "application/json", v)
 }
- 
+
 func writeBody(w http.ResponseWriter, status int, contentType string, v any) {
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)

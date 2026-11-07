@@ -14,8 +14,8 @@ type TxManager interface {
 }
 
 type pgxTxManager struct {
-	pool     *pgxpool.Pool
-	isoLevel pgx.TxIsoLevel
+	pool      *pgxpool.Pool
+	isoLevel  pgx.TxIsoLevel
 	txTimeout time.Duration
 }
 
@@ -24,6 +24,10 @@ func NewTxManager(pool *pgxpool.Pool, isoLevel pgx.TxIsoLevel, txTimeout time.Du
 }
 
 func (m *pgxTxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	if _, ok := txFromContext(ctx); ok {
+		return fn(ctx)
+	}
+
 	beginCtx, beginCancel := context.WithTimeout(ctx, m.txTimeout)
 	defer beginCancel()
 

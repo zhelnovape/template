@@ -8,18 +8,18 @@ import (
 )
 
 type Config struct {
-	HTTP 			HTTP
+	HTTP            HTTP
 	LogLevel        string
 	ShutdownTimeout time.Duration
 	DB              Database
 }
 
 type HTTP struct {
-	Addr        		string
-	ReadTimeout 		time.Duration
-	ReadHeaderTimeout 	time.Duration
-	WriteTimeout 		time.Duration
-	IdleTimeout 		time.Duration
+	Addr              string
+	ReadTimeout       time.Duration
+	ReadHeaderTimeout time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
 }
 
 type Database struct {
@@ -30,8 +30,6 @@ type Database struct {
 	ConnectTimeout  time.Duration
 	QueryTimeout    time.Duration
 }
-
-
 
 func Load() (*Config, error) {
 	var err error
@@ -68,7 +66,7 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.DB.MaxConns <= 0 {
-    	return nil, fmt.Errorf("DATABASE_MAX_CONNS must be positive, got %d", cfg.DB.MaxConns)
+		return nil, fmt.Errorf("DATABASE_MAX_CONNS must be positive, got %d", cfg.DB.MaxConns)
 	}
 	if cfg.DB.MinConns, err = getInt32OrErr("DATABASE_MIN_CONNS"); err != nil {
 		return nil, err
@@ -112,7 +110,7 @@ func getDurOrErr(varEnv string) (time.Duration, error) {
 	if d <= 0 {
 		return 0, fmt.Errorf("%s must be positive, got %s", varEnv, d)
 	}
-	
+
 	return d, nil
 }
 

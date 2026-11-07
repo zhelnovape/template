@@ -24,12 +24,12 @@ func (s *TripService) CreateTrip(ctx context.Context, trip *Trip) error {
 	trip.ID = uuid.New()
 	trip.Status = StatusActive
 	trip.StartedAt = now()
- 
+
 	return s.txManager.Do(ctx, func(ctx context.Context) error {
 		if err := s.repo.CreateTrip(ctx, trip); err != nil {
 			return err
 		}
- 
+
 		return s.repo.ChangeStatus(ctx, trip.ID, nil, StatusActive, "trip created")
 	})
 }
@@ -46,11 +46,11 @@ func (s *TripService) FinishTrip(ctx context.Context, id uuid.UUID) (*Trip, erro
 		if err != nil {
 			return err
 		}
-		
+
 		fromStatus := StatusActive
 		return s.repo.ChangeStatus(ctx, id, &fromStatus, StatusCompleted, "trip finished")
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
