@@ -145,6 +145,55 @@ func TestLoggingOnPanic(t *testing.T) {
 	assert.Contains(t, handled[0], "duration_ms")
 }
 
+func TestTracingAndMetricsOnPanic(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	reader := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
+	logger := slog.New(slog.DiscardHandler)
+	router := newRouter(http.StatusOK)
+	metrics, err := middleware.Metrics(meter, router)
+	require.NoError(t, err)
+
+	handler := middleware.Chain(router,
+		middleware.Recover(logger),
+		middleware.Tracing(tp, propagation.TraceContext{}, router),
+		middleware.Logging(logger, router),
+		metrics,
+	)
+
+	w := serve(handler, "/panic")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	spans := recorder.Ended()
+	require.Len(t, spans, 1)
+	assert.Equal(t, codes.Error, spans[0].Status().Code)
+	assert.Contains(t, spans[0].Attributes(), attribute.String("error.type", "500"))
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	found := false
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "http.server.request.duration" {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[float64])
+			require.True(t, ok)
+			require.Len(t, hist.DataPoints, 1)
+
+			code, _ := hist.DataPoints[0].Attributes.Value("http.response.status_code")
+			assert.Equal(t, int64(http.StatusInternalServerError), code.AsInt64())
+			assert.Equal(t, uint64(1), hist.DataPoints[0].Count)
+			found = true
+		}
+	}
+	assert.True(t, found, "http.server.request.duration was not recorded")
+}
+
 func TestMetrics(t *testing.T) {
 	t.Parallel()
 

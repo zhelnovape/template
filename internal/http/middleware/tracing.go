@@ -22,12 +22,17 @@ func Tracing(tp trace.TracerProvider, propagator propagation.TextMapPropagator, 
 			}
 
 			rec := newStatusRecorder(w)
-			next.ServeHTTP(rec, r)
+			panicked := true
 
-			if rec.status >= http.StatusInternalServerError {
-				span.SetStatus(codes.Error, http.StatusText(rec.status))
-				span.SetAttributes(attribute.String("error.type", strconv.Itoa(rec.status)))
-			}
+			defer func() {
+				if status := rec.finalStatus(panicked); status >= http.StatusInternalServerError {
+					span.SetStatus(codes.Error, http.StatusText(status))
+					span.SetAttributes(attribute.String("error.type", strconv.Itoa(status)))
+				}
+			}()
+
+			next.ServeHTTP(rec, r)
+			panicked = false
 		})
 
 		return otelhttp.NewHandler(inner, "http.server",

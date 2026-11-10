@@ -43,11 +43,16 @@ func Metrics(meter metric.Meter, routes chi.Routes) (Middleware, error) {
 			defer active.Add(r.Context(), -1, metric.WithAttributes(attrs...))
 
 			rec := newStatusRecorder(w)
-			next.ServeHTTP(rec, r)
+			panicked := true
 
-			duration.Record(r.Context(), time.Since(start).Seconds(), metric.WithAttributes(
-				append(attrs, attribute.Int("http.response.status_code", rec.status))...,
-			))
+			defer func() {
+				duration.Record(r.Context(), time.Since(start).Seconds(), metric.WithAttributes(
+					append(attrs, attribute.Int("http.response.status_code", rec.finalStatus(panicked)))...,
+				))
+			}()
+
+			next.ServeHTTP(rec, r)
+			panicked = false
 		})
 	}, nil
 }

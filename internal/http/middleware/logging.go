@@ -16,10 +16,7 @@ func Logging(logger *slog.Logger, routes chi.Routes) Middleware {
 			panicked := true
 
 			defer func() {
-				status := rec.status
-				if panicked {
-					status = http.StatusInternalServerError
-				}
+				status := rec.finalStatus(panicked)
 
 				level := slog.LevelInfo
 				if status >= http.StatusInternalServerError {

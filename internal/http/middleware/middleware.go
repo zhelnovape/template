@@ -38,6 +38,13 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
+func (r *statusRecorder) finalStatus(panicked bool) int {
+	if panicked {
+		return http.StatusInternalServerError
+	}
+	return r.status
+}
+
 func (r *statusRecorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
 }
