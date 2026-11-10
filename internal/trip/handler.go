@@ -104,26 +104,29 @@ func decodeTripData(body io.Reader) (api.TripData, bool) {
 		return req, false
 	}
 
-	return req, hasRequiredFields(raw) && validTripData(req)
+	return req, hasExactFields(raw) && validTripData(req)
 }
 
-func hasRequiredFields(raw []byte) bool {
+func hasExactFields(raw []byte) bool {
 	var trip map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &trip); err != nil ||
-		!present(trip, "user_id", "driver_id", "start_point", "end_point", "price") {
+		!exactFields(trip, "user_id", "driver_id", "start_point", "end_point", "price") {
 		return false
 	}
 
 	for _, name := range []string{"start_point", "end_point"} {
 		var point map[string]json.RawMessage
-		if err := json.Unmarshal(trip[name], &point); err != nil || !present(point, "latitude", "longitude") {
+		if err := json.Unmarshal(trip[name], &point); err != nil || !exactFields(point, "latitude", "longitude") {
 			return false
 		}
 	}
 	return true
 }
 
-func present(obj map[string]json.RawMessage, fields ...string) bool {
+func exactFields(obj map[string]json.RawMessage, fields ...string) bool {
+	if len(obj) != len(fields) {
+		return false
+	}
 	for _, f := range fields {
 		if v, ok := obj[f]; !ok || string(v) == "null" {
 			return false
