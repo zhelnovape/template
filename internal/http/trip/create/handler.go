@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	domain "github.com/zhelnovape/template/internal/domain/trip"
 	"github.com/zhelnovape/template/internal/generated/api"
@@ -90,6 +91,14 @@ func requireFields(obj map[string]json.RawMessage, prefix string, fields ...stri
 	for _, f := range fields {
 		if v, ok := obj[f]; !ok || string(v) == "null" {
 			return &domain.ValidationError{Field: prefix + f, Reason: "is required"}
+		}
+	}
+	if len(obj) == len(fields) {
+		return nil
+	}
+	for key := range obj {
+		if !slices.Contains(fields, key) {
+			return &domain.ValidationError{Field: prefix + key, Reason: "is not allowed"}
 		}
 	}
 	return nil

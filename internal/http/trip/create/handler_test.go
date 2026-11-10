@@ -108,6 +108,10 @@ func TestHandler_InvalidBody(t *testing.T) {
 		{name: "null longitude", body: strings.Replace(validBody, `"longitude": 60.8027`, `"longitude": null`, 1)},
 		{name: "second json object", body: validBody + `{"price": 1}`},
 		{name: "trailing garbage", body: validBody + `xyz`},
+		{name: "PRICE next to price", body: strings.Replace(validBody, `"price": 1450`, `"price": 0, "PRICE": 500`, 1)},
+		{name: "PRICE instead of price", body: strings.Replace(validBody, `"price": 1450`, `"PRICE": 500`, 1)},
+		{name: "Latitude in point", body: strings.Replace(validBody, `"latitude": 56.8389,`, `"latitude": 56.8389, "Latitude": 40,`, 1)},
+		{name: "Longitude in point", body: strings.Replace(validBody, `"longitude": 60.8027`, `"longitude": 60.8027, "Longitude": 50`, 1)},
 	}
 
 	for _, tt := range tests {
